@@ -1,5 +1,8 @@
 # gistnb
 
+> [!WARNING]
+> This is currently a work in progress and may undergo breaking changes.
+
 When sharing a Jupyter notebook, there are a few common ways of sharing dependencies:
 
 | How dependencies are listed        | Advantages                                              | Disadvantages                                                       |
