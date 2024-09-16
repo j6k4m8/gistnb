@@ -3,23 +3,20 @@ import click
 import nbformat as nbf
 import tempfile
 
+_METADATA_DIR = "gistnb"
+_METADATA_DEPLIST_PATH = "dependencies"
 
-def _split_package_and_version(package: str) -> tuple[str, str | None]:
+
+def _split_package_and_version(package: str) -> tuple[str, str | None, str | None]:
     # Split the package string into name and version
-    if "==" in package:
-        result = tuple(package.split("=="))
-    elif ">=" in package:
-        result = tuple(package.split(">="))
-    elif "<=" in package:
-        result = tuple(package.split("<="))
-    elif ">" in package:
-        result = tuple(package.split(">"))
-    elif "<" in package:
-        result = tuple(package.split("<"))
+    for operator in ["==", ">=", "<=", ">", "<"]:
+        if operator in package:
+            result = (*tuple(package.split(operator)), operator)
+    # The package name is alone I guess?
     else:
-        result = (package, None)
+        result = (package, None, None)
 
-    assert len(result) == 2, f"Expected 2 elements, got {len(result)}: {result}"
+    assert len(result) == 3, f"Expected 2 elements, got {len(result)}: {result}"
     return result
 
 
@@ -28,15 +25,21 @@ class DepContainer:
     def __init__(self):
         self._version_pins = {}
 
-    def pin(self, package, version):
+    def pin(self, package, version: tuple[str, str]):
         self._version_pins[package] = version
+
+    def as_list(self):
+        return [
+            (f"{pkg}{op}{ver}" if ver else pkg)
+            for pkg, (op, ver) in self._version_pins.items()
+        ]
 
     @classmethod
     def from_list(cls, packages: list[str]):
         container = cls()
         for package in packages:
-            pkg, ver = _split_package_and_version(package)
-            container.pin(pkg, ver)
+            pkg, ver, operator = _split_package_and_version(package)
+            container.pin(pkg, (operator, ver))
         return container
 
 
@@ -68,18 +71,29 @@ def cli(ctx, notebook, venv_path):
 @click.argument("packages", nargs=-1)
 @click.pass_context
 def add(ctx, packages):
-    # Create a temp folder to store the requirements file
+    """Add packages to the notebook metadata."""
+    notebook_path = ctx.obj["notebook"]
+    venv_path = ctx.obj["venv_path"]
+
+    # Load the notebook
+    with open(notebook_path) as f:
+        nb = nbf.read(f, as_version=4)
+
+    # Create or load the metadata
+    if _METADATA_DIR not in nb.metadata:
+        nb.metadata[_METADATA_DIR] = {}
+    if _METADATA_DEPLIST_PATH not in nb.metadata[_METADATA_DIR]:
+        nb.metadata[_METADATA_DIR][_METADATA_DEPLIST_PATH] = []
+
+    # Add the packages to the metadata
+    dep_container = DepContainer.from_list(
+        nb.metadata[_METADATA_DIR][_METADATA_DEPLIST_PATH]
+    )
     for package in packages:
+        pkg, ver, operator = _split_package_and_version(package)
+        dep_container.pin(pkg, (operator, ver))
+    nb.metadata[_METADATA_DIR][_METADATA_DEPLIST_PATH] = dep_container.as_list()
 
-
-
-
-@cli.command()
-@click.pass_context
-def list(ctx):
-
-    print(ctx.args)
-
-
-if __name__ == "__main__":
-    cli()
+    # Save the notebook
+    with open(notebook_path, "w") as f:
+        nbf.write(nb, f)
