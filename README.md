@@ -16,6 +16,13 @@ When sharing a Jupyter notebook, there are a few common ways of sharing dependen
 
 ## Usage
 
+### Guess the dependencies of a notebook
+
+```bash
+$ gistnb notebook.ipynb guess
+Installed packages: {numpy, networkx}
+```
+
 ### Add a new dependency to a notebook
 
 ```bash

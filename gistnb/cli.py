@@ -73,7 +73,6 @@ def cli(ctx, notebook, venv_path):
 def add(ctx, packages):
     """Add packages to the notebook metadata."""
     notebook_path = ctx.obj["notebook"]
-    venv_path = ctx.obj["venv_path"]
 
     # Load the notebook
     with open(notebook_path) as f:
@@ -97,3 +96,27 @@ def add(ctx, packages):
     # Save the notebook
     with open(notebook_path, "w") as f:
         nbf.write(nb, f)
+
+
+@cli.command()
+@click.pass_context
+def guess(ctx):
+    """Guess package dependencies from the notebook code."""
+    notebook_path = ctx.obj["notebook"]
+
+    # Load the notebook
+    with open(notebook_path) as f:
+        nb = nbf.read(f, as_version=4)
+
+    # Read all the cells and find any line with `import` in it:
+    imports = set()
+    for cell in nb.cells:
+        if cell.cell_type == "code":
+            for line in cell.source.splitlines():
+                if line.startswith("import "):
+                    imports.add(line.split()[1])
+                elif line.startswith("from "):
+                    imports.add(line.split()[1])
+
+    # Save the imports as dependencies
+    print("Guessed dependencies:", imports)
